@@ -3,6 +3,7 @@ import { polygons, modesKey, notifyDeferredKey } from '../FreeDraw';
 import { updateFor } from './Layer';
 import { CREATE, EDIT } from './Flags';
 import mergePolygons, { fillPolygon } from './Merge';
+import { roundOffLatLng } from "./Simplify";
 
 /**
  * @method createEdges
@@ -21,7 +22,7 @@ export default function createEdges(map, polygon, options) {
     const fetchLayerPoints = polygon => {
 
         return polygon.getLatLngs()[0].map(latLng => {
-            return map.latLngToLayerPoint(latLng);
+            return map.project(latLng, 18);
         });
 
     };
@@ -30,7 +31,7 @@ export default function createEdges(map, polygon, options) {
 
         const mode = map[modesKey];
         const icon = new DivIcon({ className: `leaflet-edge ${mode & EDIT ? '' : 'disabled'}`.trim() });
-        const latLng = map.layerPointToLatLng(point);
+        const latLng = roundOffLatLng(map.unproject(point, 18));
         const marker = new Marker(latLng, { icon }).addTo(map);
 
         // Disable the propagation when you click on the marker.

@@ -1,6 +1,21 @@
 import { Point } from 'leaflet';
 import { Clipper, PolyFillType } from 'clipper-lib';
 
+
+/**
+ * @method roundOffLatLng
+ * @param {LatLng} latLng
+ * @return {LatLng}
+ */
+export const roundOffLatLng = latLng => {
+    const newLat = +latLng.lat.toFixed(7);
+    const newLng = +latLng.lng.toFixed(7);
+    return {
+      lat: newLat,
+      lng: newLng
+    };
+};
+
 /**
  * @method latLngsToClipperPoints
  * @param {Object} map
@@ -10,7 +25,7 @@ import { Clipper, PolyFillType } from 'clipper-lib';
 export const latLngsToClipperPoints = (map, latLngs) => {
 
     return latLngs.map(latLng => {
-        const point = map.latLngToLayerPoint(latLng);
+        const point = map.project(latLng, 18); // 18 which is our max zoom
         return { X: point.x, Y: point.y };
     });
 
@@ -28,7 +43,7 @@ const clipperPolygonsToLatLngs = (map, polygons) => {
 
         return polygon.map(point => {
             const updatedPoint = new Point(point.X, point.Y);
-            return map.layerPointToLatLng(updatedPoint);
+            return roundOffLatLng(map.unproject(updatedPoint, 18));
         });
 
     });
@@ -42,9 +57,7 @@ const clipperPolygonsToLatLngs = (map, polygons) => {
  * @return {LatLng[]}
  */
 export default (map, latLngs, options) => {
-
-    const points = Clipper.CleanPolygon(latLngsToClipperPoints(map, latLngs), options.simplifyFactor);
-    const polygons = Clipper.SimplifyPolygon(points, PolyFillType.pftNonZero);
+    const polygons = Clipper.SimplifyPolygon(latLngsToClipperPoints(map, latLngs), PolyFillType.pftNonZero);
 
     return clipperPolygonsToLatLngs(map, polygons);
 
