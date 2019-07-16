@@ -1,8 +1,8 @@
-import { DivIcon, Marker, DomEvent } from 'leaflet';
-import { polygons, modesKey, notifyDeferredKey } from '../FreeDraw';
-import { updateFor } from './Layer';
-import { CREATE, EDIT } from './Flags';
-import mergePolygons, { fillPolygon } from './Merge';
+import { DivIcon, Marker, DomEvent } from "leaflet";
+import { polygons, modesKey, notifyDeferredKey } from "../FreeDraw";
+import { updateFor } from "./Layer";
+import { CREATE, EDIT } from "./Flags";
+import mergePolygons, { fillPolygon } from "./Merge";
 import { roundOffLatLng } from "./Simplify";
 
 /**
@@ -13,115 +13,93 @@ import { roundOffLatLng } from "./Simplify";
  * @return {Array}
  */
 export default function createEdges(map, polygon, options) {
+  const markers = polygon.getLatLngs()[0].map(latLng => {
+    console.log("in my");
 
-    /**
-     * @method fetchLayerPoints
-     * @param polygon {Object}
-     * @return {Array}
-     */
-    const fetchLayerPoints = polygon => {
+    const mode = map[modesKey];
+    const icon = new DivIcon({
+      className: `leaflet-edge ${mode & EDIT ? "" : "disabled"}`.trim()
+    });
+    const marker = new Marker(latLng, { icon }).addTo(map);
 
-        return polygon.getLatLngs()[0].map(latLng => {
-            return map.project(latLng, 18);
-        });
+    // Disable the propagation when you click on the marker.
+    DomEvent.disableClickPropagation(marker);
 
-    };
+    marker.on("mousedown", function mouseDown() {
+      if (!(map[modesKey] & EDIT)) {
+        // Polygons can only be created when the mode includes edit.
+        map.off("mousedown", mouseDown);
+        return;
+      }
 
-    const markers = fetchLayerPoints(polygon).map(point => {
+      // Disable the map dragging as otherwise it's difficult to reposition the edge.
+      map.dragging.disable();
 
-        const mode = map[modesKey];
-        const icon = new DivIcon({ className: `leaflet-edge ${mode & EDIT ? '' : 'disabled'}`.trim() });
-        const latLng = roundOffLatLng(map.unproject(point, 18));
-        const marker = new Marker(latLng, { icon }).addTo(map);
+      /**
+       * @method mouseMove
+       * @param {Object} event
+       * @return {void}
+       */
+      const mouseMove = event => {
+        // Determine where to move the marker to from the mouse move event.
+        const containerPoint = map.latLngToContainerPoint(event.latlng);
+        const latLng = map.containerPointToLatLng(containerPoint);
 
-        // Disable the propagation when you click on the marker.
-        DomEvent.disableClickPropagation(marker);
+        // Update the marker with the new lat/lng.
+        marker.setLatLng(latLng);
 
-        marker.on('mousedown', function mouseDown() {
+        // ...And finally update the polygon to match the current markers.
+        const latLngs = markers.map(marker => marker.getLatLng());
+        polygon.setLatLngs(latLngs);
+        polygon.redraw();
+      };
 
-            if (!(map[modesKey] & EDIT)) {
+      // Listen for the mouse move events to determine where to move the marker to.
+      map.on("mousemove", mouseMove);
 
-                // Polygons can only be created when the mode includes edit.
-                map.off('mousedown', mouseDown);
-                return;
+      /**
+       * @method mouseUp
+       * @return {void}
+       */
+      function mouseUp() {
+        if (!(map[modesKey] & CREATE)) {
+          // Re-enable the dragging of the map only if created mode is not enabled.
+          map.dragging.enable();
+        }
 
-            }
+        // Stop listening to the events.
+        map.off("mouseup", mouseUp);
+        map.off("mousedown", mouseDown);
+        map.off("mousemove", mouseMove);
 
-            // Disable the map dragging as otherwise it's difficult to reposition the edge.
-            map.dragging.disable();
+        // Attempt to simplify the polygon to prevent voids in the polygon.
+        fillPolygon(map, polygon, options);
 
-            /**
-             * @method mouseMove
-             * @param {Object} event
-             * @return {void}
-             */
-            const mouseMove = event => {
+        // Merge the polygons if the options allow using a two-pass approach as this yields the better results.
+        const merge = () =>
+          mergePolygons(map, Array.from(polygons.get(map)), options);
+        console.log("func", merge());
+        options.mergePolygons && merge() && merge();
 
-                // Determine where to move the marker to from the mouse move event.
-                const containerPoint = map.latLngToContainerPoint(event.latlng);
-                const latLng = map.containerPointToLatLng(containerPoint);
+        // Trigger the event for having modified the edges of a polygon, unless the `notifyAfterEditExit`
+        // option is equal to `true`, in which case we'll defer the notification.
+        options.notifyAfterEditExit
+          ? (() => {
+              // Deferred function that will be invoked by `modeFor` when the `EDIT` mode is exited.
+              map[notifyDeferredKey] = () => updateFor(map, "edit");
+            })()
+          : updateFor(map, "edit");
+      }
 
-                // Update the marker with the new lat/lng.
-                marker.setLatLng(latLng);
-
-                // ...And finally update the polygon to match the current markers.
-                const latLngs = markers.map(marker => marker.getLatLng());
-                polygon.setLatLngs(latLngs);
-                polygon.redraw();
-
-            };
-
-            // Listen for the mouse move events to determine where to move the marker to.
-            map.on('mousemove', mouseMove);
-
-            /**
-             * @method mouseUp
-             * @return {void}
-             */
-            function mouseUp() {
-
-                if (!(map[modesKey] & CREATE)) {
-
-                    // Re-enable the dragging of the map only if created mode is not enabled.
-                    map.dragging.enable();
-
-                }
-
-                // Stop listening to the events.
-                map.off('mouseup', mouseUp);
-                map.off('mousedown', mouseDown);
-                map.off('mousemove', mouseMove);
-
-                // Attempt to simplify the polygon to prevent voids in the polygon.
-                fillPolygon(map, polygon, options);
-
-                // Merge the polygons if the options allow using a two-pass approach as this yields the better results.
-                const merge = () => mergePolygons(map, Array.from(polygons.get(map)), options);
-                options.mergePolygons && merge() && merge();
-
-                // Trigger the event for having modified the edges of a polygon, unless the `notifyAfterEditExit`
-                // option is equal to `true`, in which case we'll defer the notification.
-                options.notifyAfterEditExit ? (() => {
-
-                    // Deferred function that will be invoked by `modeFor` when the `EDIT` mode is exited.
-                    map[notifyDeferredKey] = () => updateFor(map, 'edit');
-
-                })() : updateFor(map, 'edit');
-
-            }
-
-            // Cleanup the mouse events when the user releases the mouse button.
-            // We need to listen on both map and marker, because if the user moves the edge too quickly then
-            // the mouse up will occur on the map layer.
-            map.on('mouseup', mouseUp);
-            marker.on('mouseup', mouseUp);
-
-        });
-
-        return marker;
-
+      // Cleanup the mouse events when the user releases the mouse button.
+      // We need to listen on both map and marker, because if the user moves the edge too quickly then
+      // the mouse up will occur on the map layer.
+      map.on("mouseup", mouseUp);
+      marker.on("mouseup", mouseUp);
     });
 
-    return markers;
+    return marker;
+  });
 
+  return markers;
 }

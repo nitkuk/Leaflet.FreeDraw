@@ -1,6 +1,6 @@
 {
   "name": "leaflet-freedraw",
-  "version": "2.12.0",
+  "version": "2.10.1",
   "description": "Zoopla inspired freehand polygon creation using Leaflet.js.",
   "source": "src/FreeDraw.js",
   "main": "dist/leaflet-freedraw.cjs.js",
@@ -43,6 +43,9 @@
   },
   "homepage": "https://github.com/Wildhoney/Leaflet.FreeDraw",
   "dependencies": {
+    "@turf/clean-coords": "^6.0.1",
+    "@turf/union": "^5.1.5",
+    "@turf/unkink-polygon": "^5.1.5",
     "clipper-lib": "~6.2.1",
     "regenerator-runtime": "^0.13.2",
     "turf-intersect": "~3.0.12",
