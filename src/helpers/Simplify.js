@@ -3,6 +3,7 @@ import TurfUnkinkPolygon from "@turf/unkink-polygon";
 import { compose } from "ramda";
 import createPolygon from "turf-polygon";
 import TurfClean from "@turf/clean-coords";
+import { multiPolygon } from "@turf/helpers";
 
 /**
  * @method roundOffLatLng
@@ -68,7 +69,7 @@ export default latLngs => {
     latLngsToTuple
   );
   console.log({ latLngs });
-  const turfPolygon = toTurfPolygon(latLngs);
+  const turfPolygon = multiPolygon([latLngs]);
   console.log({ turfPolygon });
   const unkinkedPolygons = TurfUnkinkPolygon(TurfClean(turfPolygon));
   console.log({ unkinkedPolygons });
